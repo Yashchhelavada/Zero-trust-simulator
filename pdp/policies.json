@@ -1,0 +1,32 @@
+{
+  "policies": [
+    {
+      "id": "p1",
+      "resource": "/files/report.txt",
+      "methods": ["GET"],
+      "required_roles": ["user", "admin"],
+      "description": "All authenticated users can read the report"
+    },
+    {
+      "id": "p2",
+      "resource": "/files/secret.txt",
+      "methods": ["GET"],
+      "required_roles": ["admin"],
+      "description": "Only admins can read the secret file"
+    },
+    {
+      "id": "p3",
+      "resource": "/admin/users",
+      "methods": ["GET", "POST", "DELETE"],
+      "required_roles": ["admin"],
+      "description": "Admin panel requires admin role"
+    },
+    {
+      "id": "p4",
+      "resource": "/files/public.txt",
+      "methods": ["GET"],
+      "required_roles": ["user", "admin"],
+      "description": "Public file — any authenticated user"
+    }
+  ]
+}

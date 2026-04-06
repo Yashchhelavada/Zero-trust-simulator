@@ -1,0 +1,61 @@
+version: "3.9"
+
+networks:
+  zt-net:
+    driver: bridge
+
+volumes:
+  decisions:
+
+services:
+
+  idp:
+    build: ./idp
+    container_name: idp
+    networks: [zt-net]
+    volumes:
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,ssl; ctx=ssl.create_default_context(); ctx.load_verify_locations('/certs/ca.crt'); urllib.request.urlopen('https://idp:5000/health', context=ctx)"]
+      interval: 10s
+      retries: 5
+
+  pdp:
+    build: ./pdp
+    container_name: pdp
+    networks: [zt-net]
+    volumes:
+      - ./certs:/certs:ro
+      - decisions:/data
+    depends_on:
+      idp:
+        condition: service_healthy
+
+  resource:
+    build: ./resource
+    container_name: resource
+    networks: [zt-net]
+    volumes:
+      - ./certs:/certs:ro
+    depends_on: [pdp]
+
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    networks: [zt-net]
+    volumes:
+      - ./certs:/certs:ro
+      - decisions:/data:ro
+    ports:
+      - "8443:8080"
+    depends_on: [pdp]
+
+  attacker:
+    build: ./attacker
+    container_name: attacker
+    networks: [zt-net]
+    volumes:
+      - ./certs:/certs:ro   # has CA cert to verify servers, but NO service cert = mTLS to PDP will be refused
+    depends_on: [resource]
+    restart: "no"

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero Trust — Decision Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --green: #39d353; --red: #f85149; --yellow: #d29922;
+    --blue: #58a6ff; --text: #e6edf3; --muted: #8b949e;
+    --border: #30363d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
+
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 15px; font-weight: bold; color: var(--green); letter-spacing: 1px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .live-badge { font-size: 10px; color: var(--green); border: 1px solid var(--green); padding: 2px 7px; border-radius: 3px; }
+
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px 24px; }
+  .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: bold; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red   { color: var(--red); }
+  .stat-value.blue  { color: var(--blue); }
+
+  .main { display: grid; grid-template-columns: 200px 1fr; gap: 12px; padding: 0 24px 24px; }
+  .sidebar { display: flex; flex-direction: column; gap: 8px; }
+  .service-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .service-name { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+  .service-status { font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .online  { background: var(--green); }
+  .offline { background: var(--red); }
+  .degraded{ background: var(--yellow); }
+
+  .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .panel-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--bg3); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 7px 12px; border-bottom: 1px solid #1c2128; font-size: 12px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1c2128; }
+  .allow { color: var(--green); font-weight: bold; }
+  .deny  { color: var(--red);   font-weight: bold; }
+  .reason-cell { color: var(--muted); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">&#9632; ZERO TRUST</div>
+  <div class="dot"></div>
+  <span class="live-badge">LIVE</span>
+  <span style="margin-left:auto;color:var(--muted);font-size:11px" id="last-update">—</span>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-label">Total decisions</div><div class="stat-value blue" id="s-total">—</div></div>
+  <div class="stat"><div class="stat-label">Allowed</div><div class="stat-value green" id="s-allowed">—</div></div>
+  <div class="stat"><div class="stat-label">Denied</div><div class="stat-value red" id="s-denied">—</div></div>
+  <div class="stat"><div class="stat-label">Allow rate</div><div class="stat-value" id="s-rate">—</div></div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:0 4px 4px">Services</div>
+    <div class="service-card"><div class="service-name">Identity Provider</div><div class="service-status"><span class="status-dot" id="h-idp"></span><span id="ht-idp">—</span></div></div>
+    <div class="service-card"><div class="service-name">Policy Engine</div><div class="service-status"><span class="status-dot" id="h-pdp"></span><span id="ht-pdp">—</span></div></div>
+    <div class="service-card"><div class="service-name">Resource Server</div><div class="service-status"><span class="status-dot" id="h-resource"></span><span id="ht-resource">—</span></div></div>
+    <div class="service-card"><div class="service-name">Dashboard</div><div class="service-status"><span class="status-dot online"></span><span>online</span></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Policy decision log</span>
+      <span style="font-size:11px;color:var(--muted)" id="row-count">—</span>
+    </div>
+    <div style="overflow-x:auto;max-height:560px;overflow-y:auto">
+      <table>
+        <thead><tr><th>Time (UTC)</th><th>User</th><th>Role</th><th>Resource</th><th>Method</th><th>Decision</th><th>Reason</th></tr></thead>
+        <tbody id="decisions-body"><tr><td colspan="7" class="empty">Waiting for decisions...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function fetchDecisions() {
+    const r = await fetch('/api/decisions');
+    const rows = await r.json();
+    const tbody = document.getElementById('decisions-body');
+    document.getElementById('row-count').textContent = rows.length + ' entries';
+    if (!rows.length) return;
+    tbody.innerHTML = rows.map(d => `
+      <tr>
+        <td style="color:var(--muted)">${d.ts.slice(11,19)}</td>
+        <td style="color:var(--blue)">${d.username}</td>
+        <td style="color:var(--muted)">${d.role}</td>
+        <td>${d.resource}</td>
+        <td>${d.method}</td>
+        <td class="${d.decision === 'ALLOW' ? 'allow' : 'deny'}">${d.decision}</td>
+        <td class="reason-cell" title="${d.reason}">${d.reason}</td>
+      </tr>`).join('');
+    document.getElementById('last-update').textContent =
+      'Last update: ' + new Date().toLocaleTimeString();
+  }
+
+  async function fetchStats() {
+    const r = await fetch('/api/stats');
+    const s = await r.json();
+    document.getElementById('s-total').textContent   = s.total;
+    document.getElementById('s-allowed').textContent = s.allowed;
+    document.getElementById('s-denied').textContent  = s.denied;
+    document.getElementById('s-rate').textContent    = s.allow_rate + '%';
+    const el = document.getElementById('s-rate');
+    el.style.color = s.allow_rate > 70 ? 'var(--green)' : 'var(--yellow)';
+  }
+
+  async function fetchHealth() {
+    const r = await fetch('/api/health');
+    const h = await r.json();
+    for (const [svc, status] of Object.entries(h)) {
+      const dot = document.getElementById('h-' + svc);
+      const txt = document.getElementById('ht-' + svc);
+      if (!dot) continue;
+      dot.className = 'status-dot ' + status;
+      txt.textContent = status;
+    }
+  }
+
+  function refresh() { fetchDecisions(); fetchStats(); fetchHealth(); }
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>
