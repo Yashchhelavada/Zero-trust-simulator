@@ -18,14 +18,19 @@ for SERVICE in idp pdp resource dashboard; do
   openssl req -new -key $CERTS/$SERVICE.key \
     -out $CERTS/$SERVICE.csr \
     -subj "/CN=$SERVICE/O=ZeroTrustLab"
+  # Create a temp extension file with SAN for this service
+  cat > $CERTS/$SERVICE.ext <<EOF
+subjectAltName=DNS:$SERVICE,DNS:localhost
+EOF
   openssl x509 -req -days 365 \
     -in $CERTS/$SERVICE.csr \
     -CA $CERTS/ca.crt \
     -CAkey $CERTS/ca.key \
     -CAcreateserial \
+    -extfile $CERTS/$SERVICE.ext \
     -out $CERTS/$SERVICE.crt
-  rm $CERTS/$SERVICE.csr
-  echo "    ✓ $SERVICE cert signed by CA"
+  rm $CERTS/$SERVICE.csr $CERTS/$SERVICE.ext
+  echo "    ✓ $SERVICE cert signed by CA (with SAN)"
 done
 
 echo "[+] All certs generated in $CERTS/"
